@@ -1,0 +1,56 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Users can read/write their own doc; admin can read all
+    match /users/{uid} {
+      allow read, write: if request.auth.uid == uid;
+      allow read: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow write: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Numbers: any authenticated user can read available numbers; only admin can write
+    match /numbers/{id} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      // Allow updating status via transaction (for assignments)
+      allow update: if request.auth != null;
+    }
+
+    // Assignments: users can read/write their own
+    match /assignments/{id} {
+      allow read, write: if request.auth != null &&
+        (resource == null || resource.data.userId == request.auth.uid);
+      allow read, write: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Logs: users can create; admin can read all
+    match /logs/{id} {
+      allow create: if request.auth != null;
+      allow read: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // Withdrawals: users can create & read own; admin manages all
+    match /withdrawals/{id} {
+      allow create: if request.auth != null;
+      allow read: if request.auth != null &&
+        (resource.data.userId == request.auth.uid ||
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      allow update: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Settings: anyone authenticated can read; only admin writes
+    match /settings/{id} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+  }
+}
